@@ -8,11 +8,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          unzip -o akhonpay.zip
-          cp -a akhonpay/. .
-          rm -rf akhonpay akhonpay.zip
+          ZIP_FILE=$(ls *.zip | head -n 1)
+          echo "Found zip: $ZIP_FILE"
+          unzip -o "$ZIP_FILE"
+          EXTRACTED_DIR=$(unzip -qql "$ZIP_FILE" | head -n1 | awk '{print $4}' | cut -d/ -f1)
+          echo "Extracted folder: $EXTRACTED_DIR"
+          cp -a "$EXTRACTED_DIR"/. .
+          rm -rf "$EXTRACTED_DIR" "$ZIP_FILE"
           git config user.name "bot"
           git config user.email "bot@users.noreply.github.com"
           git add -A
-          git commit -m "Unpack akhonpay zip"
+          git commit -m "Unpack zip archive automatically"
           git push
