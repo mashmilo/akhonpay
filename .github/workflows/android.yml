@@ -15,24 +15,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: List files to locate Android project
-        run: |
-          echo "=== Root Files ==="
-          ls -la
-          echo "=== Searching for gradlew ==="
-          find . -name "gradlew"
-
       - name: Build Debug APK
         run: |
-          # Finds the directory containing gradlew and runs it automatically
-          GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "gradlew not found!"
-            exit 1
-          fi
-          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-          echo "Found project directory at: $PROJECT_DIR"
-          cd "$PROJECT_DIR"
+          cd akhonpay/android
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -40,4 +25,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: '**/build/outputs/apk/debug/app-debug.apk'
+          path: akhonpay/android/app/build/outputs/apk/debug/app-debug.apk
