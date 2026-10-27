@@ -1,0 +1,49 @@
+name: Build Android APK
+
+# Free: GitHub-hosted runners already include the Android SDK. Public repos have unlimited minutes.
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      # Optional: sign with your own key. Without these secrets the APK is debug-signed,
+      # which installs fine on your own phone.
+      - name: Decode keystore (if provided)
+        env:
+          KS_B64: ${{ secrets.AKHONPAY_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/akhonpay.jks"
+            echo "AKHONPAY_KEYSTORE_FILE=$RUNNER_TEMP/akhonpay.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Unit tests + release APK
+        env:
+          AKHONPAY_KEYSTORE_PASSWORD: ${{ secrets.AKHONPAY_KEYSTORE_PASSWORD }}
+          AKHONPAY_KEY_ALIAS: ${{ secrets.AKHONPAY_KEY_ALIAS }}
+          AKHONPAY_KEY_PASSWORD: ${{ secrets.AKHONPAY_KEY_PASSWORD }}
+        run: gradle --no-daemon test assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: akhonpay-forwarder-apk
+          path: android/app/build/outputs/apk/release/*.apk
