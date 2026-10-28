@@ -43,3 +43,5 @@ CREATE TABLE IF NOT EXISTS unclaimed_transactions (
   claimed_session TEXT,
   claimed_at INTEGER
 );
+
+-- v1
