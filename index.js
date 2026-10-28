@@ -53,6 +53,8 @@ export default {
     const origin = new URL(req.url).origin;
     try {
       if (req.method === 'GET' && p === '/health') return json({ ok: true });
+      if (req.method === 'GET' && p === '/') return new Response(demoHtml(!!env.DEMO_PASSCODE), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY' } });
+      if (req.method === 'POST' && p === '/api/demo/create') return await demoCreate(req, env, origin);
       if (req.method === 'POST' && p === '/api/v1/payment/create') return await createPayment(req, env, origin);
       if (req.method === 'POST' && p === '/api/v1/mfs-callback') return await mfsCallback(req, env);
 
@@ -80,6 +82,54 @@ export default {
     ctx.waitUntil(runCron(env));
   },
 };
+
+/* ---------- Demo portal: create a test payment from the browser (needs the DEMO_PASSCODE secret) ---------- */
+async function demoCreate(req, env, origin) {
+  if (!env.DEMO_PASSCODE) return json({ error: 'demo_disabled' }, 403);
+  const b = await req.json().catch(() => null);
+  if (!b || !safeEqual(b.passcode, env.DEMO_PASSCODE)) return json({ error: 'wrong_passcode' }, 401);
+  const amount = Number(b.amount);
+  if (!Number.isFinite(amount) || amount < 1 || amount > 500) return json({ error: 'invalid_amount' }, 400);
+  const client = await env.DB.prepare('SELECT * FROM clients WHERE active = 1 ORDER BY id LIMIT 1').first();
+  if (!client) return json({ error: 'no_client_registered' }, 400);
+  const order = 'demo-' + randomId().slice(3, 11);
+  const inner = new Request(origin + '/api/v1/payment/create', {
+    method: 'POST',
+    headers: { 'x-api-key': client.api_key, 'content-type': 'application/json' },
+    body: JSON.stringify({ amount, order_id: order, provider: b.provider }),
+  });
+  return await createPayment(inner, env, origin);
+}
+
+const demoHtml = (enabled) => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"><meta name="color-scheme" content="light dark"><title>Akhonpay demo</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#0f1f5c;--muted:#5b6785;--line:#d9e0ee;--accent:#0f1f5c;--on:#fff;--err:#c0262d}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--card:#141b33;--text:#e8ecf8;--muted:#9aa5c4;--line:#27314f;--accent:#2fd0e8;--on:#06121f;--err:#ff7b80}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}
+main{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
+h1{margin:0 0 4px;font-size:22px}p{margin:0 0 20px;color:var(--muted);font-size:14px}
+label{display:block;margin:14px 0 6px;font-size:13px;font-weight:600;color:var(--muted)}
+input,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--text);font:inherit}
+button{width:100%;margin-top:20px;padding:14px;border:0;border-radius:999px;background:var(--accent);color:var(--on);font:inherit;font-weight:600}
+button:disabled{opacity:.6}#msg{min-height:22px;margin-top:12px;font-size:14px;color:var(--err)}
+</style></head><body><main>
+<h1>Akhonpay demo</h1><p>Create a test payment and open the real checkout page.</p>
+${enabled ? `<form id="f">
+<label for="amt">Amount (Tk, up to 500)</label><input id="amt" type="number" inputmode="decimal" min="1" max="500" step="0.01" value="10" required>
+<label for="prov">Method</label><select id="prov"><option value="bkash">bKash</option><option value="nagad">Nagad</option><option value="rocket">Rocket</option></select>
+<label for="code">Demo passcode</label><input id="code" type="password" autocomplete="off" required>
+<button id="go" type="submit">Create payment</button><div id="msg" role="alert"></div></form>
+<script>
+document.getElementById('f').addEventListener('submit',async function(e){
+  e.preventDefault();var b=document.getElementById('go'),m=document.getElementById('msg');b.disabled=true;m.textContent='';
+  try{var r=await fetch('/api/demo/create',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({amount:document.getElementById('amt').value,provider:document.getElementById('prov').value,passcode:document.getElementById('code').value})});
+  var d=await r.json();if(r.ok&&d.checkout_url){location.href=d.checkout_url;return}
+  m.textContent=({wrong_passcode:'Wrong passcode.',invalid_amount:'Amount must be between 1 and 500.',provider_not_configured:'That method has no wallet number set.'})[d.error]||('Error: '+(d.error||r.status));}
+  catch(x){m.textContent='Network error.'}b.disabled=false});
+</script>` : `<div id="msg">Demo is switched off. Set the DEMO_PASSCODE secret to turn it on.</div>`}
+</main></body></html>`;
 
 /* ---------- Phase A: payment initiation ---------- */
 async function createPayment(req, env, origin) {
