@@ -1,0 +1,19 @@
+name = "akhonpay"
+main = "index.js"
+compatibility_date = "2025-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "akhonpay"
+database_id = "1490cf2d-4620-4886-bcf5-910b13cb5937"
+
+[triggers]
+crons = ["* * * * *"]   # expires sessions + retries failed webhooks
+
+[vars]
+BKASH_NUMBER  = "01403061329"
+NAGAD_NUMBER  = "01403061329"
+ROCKET_NUMBER = "01403061329"
+SESSION_TTL_MIN = "10"
+
+# Secrets (never commit): wrangler secret put DEVICE_API_KEY / DEVICE_SECRET
