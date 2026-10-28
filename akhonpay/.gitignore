@@ -1,7 +1,0 @@
-node_modules/
-.wrangler/
-.dev.vars
-*.keystore
-*.jks
-.DS_Store
-/tests/.out/
